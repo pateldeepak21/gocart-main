@@ -29,7 +29,7 @@ export default function AdminStores() {
     const toggleIsActive = async (storeId) => {
         try {
             const token = await getToken()
-            const { data } = await axios.post('/api/store/stock-toggle', { storeId }, {
+            const { data } = await axios.post('/api/store/toggle', { storeId }, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
