@@ -1,7 +1,12 @@
 import { serve } from "inngest/next";
 import { inngest } from "../../../inngest/client";
-import { syncUserCreation, syncUserUpdation, syncUserDeletion } from "@/inngest/functions";
 
+import {
+  syncUserCreation,
+  syncUserUpdation,
+  syncUserDeletion,
+  deleteCouponOnExpiry,
+} from "@/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -9,6 +14,6 @@ export const { GET, POST, PUT } = serve({
     syncUserCreation,
     syncUserUpdation,
     syncUserDeletion,
-    deleteCouponOnExpiry
+    deleteCouponOnExpiry,
   ],
-}); 
+});
