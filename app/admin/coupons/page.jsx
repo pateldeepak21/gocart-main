@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import toast from "react-hot-toast"
@@ -42,7 +42,9 @@ export default function AdminCoupons() {
         try {
             const token = await getToken()
             newCoupon.discount = Number(newCoupon.discount)
-            newCoupon.expiresAt = new Date(newCoupon.expiresAt)
+            const expiry = new Date(newCoupon.expiresAt)
+            expiry.setHours(23, 59, 59, 999)
+            newCoupon.expiresAt = expiry
             const { data } = await axios.post('/api/admin/coupon', { coupon: newCoupon }, {
                 headers: {
                     Authorization: `Bearer ${token}`

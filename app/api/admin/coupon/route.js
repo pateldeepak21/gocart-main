@@ -13,7 +13,6 @@ export async function POST(request) {
         }
         const { coupon } = await request.json()
         coupon.code = coupon.code.toUpperCase()
-        
         await prisma.coupon.create({ data: coupon }).then(async (coupon) => {
             await inngest.send({
                 name: "app/coupon.expired",

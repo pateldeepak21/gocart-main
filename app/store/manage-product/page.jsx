@@ -3,7 +3,8 @@ import { useEffect, useState } from "react"
 import { toast } from "react-hot-toast"
 import Image from "next/image"
 import Loading from "@/components/Loading"
-import { productDummyData } from "@/assets/assets"
+import { useAuth, useUser } from "@clerk/nextjs"
+import axios from "axios"
 
 export default function StoreManageProducts() {
 
@@ -12,20 +13,56 @@ export default function StoreManageProducts() {
     const [loading, setLoading] = useState(true)
     const [products, setProducts] = useState([])
 
+    const { getToken } = useAuth()
+    const { user } = useUser()
+
     const fetchProducts = async () => {
-        setProducts(productDummyData)
+        try {
+            const token = await getToken()
+
+            const { data } = await axios.get("/api/store/product", {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            })
+
+            setProducts(
+                data.products.sort(
+                    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+                )
+            )
+        } catch (error) {
+            toast.error(error?.response?.data?.error || error.message)
+        }
         setLoading(false)
     }
 
     const toggleStock = async (productId) => {
-        // Logic to toggle the stock of a product
-
-
+        try {
+            const token = await getToken()
+            const { data } = await axios.post('/api/store/stock-toggle', { productId }, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            })
+            toast.success(data.message)
+            setProducts(prevProducts =>
+                prevProducts.map(product =>
+                    product.id === productId
+                        ? { ...product, inStock: !product.inStock }
+                        : product
+                )
+            )
+        } catch (error) {
+            toast.error(error?.response?.data?.error || error.message)
+        }
     }
 
     useEffect(() => {
+        if (user) {
             fetchProducts()
-    }, [])
+        }
+    }, [user])
 
     if (loading) return <Loading />
 
