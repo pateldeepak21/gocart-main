@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState } from "react"
 import { toast } from "react-hot-toast"
 import axios from "axios"
-import { useAuth , useUser } from "@clerk/nextjs"
+import { useAuth } from "@clerk/nextjs"
 
 export default function StoreAddProduct() {
 
@@ -38,6 +38,7 @@ export default function StoreAddProduct() {
     })
 
     const [loading, setLoading] = useState(false)
+    const [aiUsed, setAiUsed] = useState(false)
 
     const { getToken } = useAuth()
 
@@ -46,6 +47,68 @@ export default function StoreAddProduct() {
             ...productInfo,
             [e.target.name]: e.target.value
         })
+    }
+
+    const handleImagesUpload = async (key, file) => {
+        if (!file) return
+
+        setImages(prev => ({
+            ...prev,
+            [key]: file
+        }))
+
+        // Run AI only once on first uploaded image
+        if (aiUsed) return
+
+        const reader = new FileReader()
+
+        reader.readAsDataURL(file)
+
+        reader.onloadend = async () => {
+            try {
+                const base64String = reader.result.split(",")[1]
+                const mimeType = file.type
+
+                const token = await getToken()
+
+                await toast.promise(
+                    axios.post(
+                        "/api/store/ai",
+                        {
+                            base64Image: base64String,
+                            mimeType
+                        },
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`
+                            }
+                        }
+                    ),
+                    {
+                        loading: "Analyzing image with AI...",
+                        success: (res) => {
+                            const data = res.data
+
+                            setProductInfo(prev => ({
+                                ...prev,
+                                name: data.name || prev.name,
+                                description: data.description || prev.description
+                            }))
+
+                            setAiUsed(true)
+
+                            return "AI filled product info successfully"
+                        },
+                        error: (err) =>
+                            err?.response?.data?.error ||
+                            err.message ||
+                            "AI could not analyze the image"
+                    }
+                )
+            } catch (error) {
+                console.error(error)
+            }
+        }
     }
 
     const onSubmitHandler = async (e) => {
@@ -106,9 +169,12 @@ export default function StoreAddProduct() {
                 4: null
             })
 
+            setAiUsed(false)
+
         } catch (error) {
             toast.error(
-                error?.response?.data?.error || error.message
+                error?.response?.data?.error ||
+                error.message
             )
         } finally {
             setLoading(false)
@@ -140,16 +206,17 @@ export default function StoreAddProduct() {
                             }
                             alt=""
                         />
+
                         <input
                             type="file"
                             accept="image/*"
                             id={`images${key}`}
                             hidden
                             onChange={(e) =>
-                                setImages({
-                                    ...images,
-                                    [key]: e.target.files[0]
-                                })
+                                handleImagesUpload(
+                                    key,
+                                    e.target.files?.[0]
+                                )
                             }
                         />
                     </label>
@@ -224,7 +291,10 @@ export default function StoreAddProduct() {
                 <option value="">Select a category</option>
 
                 {categories.map((category) => (
-                    <option key={category} value={category}>
+                    <option
+                        key={category}
+                        value={category}
+                    >
                         {category}
                     </option>
                 ))}
