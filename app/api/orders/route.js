@@ -3,18 +3,35 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import Stripe from "stripe";
 import { PaymentMethod } from "@prisma/client";
+import ensureUserExists from "@/lib/ensureUserExists";
 
-// create order(s) from cart, applying a coupon if provided
+const withRetry = async (fn, retries = 2) => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            return await fn()
+        } catch (error) {
+            const isConnectionError = error?.message?.includes('Connection terminated')
+                || error?.message?.includes('Connection reset')
+
+            if (!isConnectionError || attempt === retries) {
+                throw error
+            }
+            await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)))
+        }
+    }
+}
+
 export async function POST(request) {
     try {
         const { userId, has } = getAuth(request)
+        await ensureUserExists(userId)
+
         const { addressId, items, couponCode, paymentMethod } = await request.json()
 
         if (!addressId || !items || items.length === 0) {
             return NextResponse.json({ error: "missing order details" }, { status: 400 })
         }
 
-        // fetch products for the cart items
         const productIds = items.map(item => item.id)
         const products = await prisma.product.findMany({
             where: { id: { in: productIds } }
@@ -24,7 +41,6 @@ export async function POST(request) {
             return NextResponse.json({ error: "no valid products found" }, { status: 400 })
         }
 
-        // group items by storeId, since each order belongs to one store
         const itemsByStore = {}
         for (const item of items) {
             const product = products.find(p => p.id === item.id)
@@ -40,7 +56,6 @@ export async function POST(request) {
             })
         }
 
-        // validate coupon if provided
         let coupon = null
         if (couponCode) {
             coupon = await prisma.coupon.findUnique({
@@ -69,33 +84,34 @@ export async function POST(request) {
             }
         }
 
-        // create one order per store
-        const createdOrders = await prisma.$transaction(
-            Object.entries(itemsByStore).map(([storeId, storeItems]) => {
-                const storeTotal = storeItems.reduce((acc, item) => acc + item.price * item.quantity, 0)
-                const discountedTotal = coupon
-                    ? storeTotal - (storeTotal * coupon.discount / 100)
-                    : storeTotal
+        const createdOrders = await withRetry(() =>
+            prisma.$transaction(
+                Object.entries(itemsByStore).map(([storeId, storeItems]) => {
+                    const storeTotal = storeItems.reduce((acc, item) => acc + item.price * item.quantity, 0)
+                    const discountedTotal = coupon
+                        ? storeTotal - (storeTotal * coupon.discount / 100)
+                        : storeTotal
 
-                return prisma.order.create({
-                    data: {
-                        userId,
-                        storeId,
-                        addressId,
-                        total: discountedTotal,
-                        paymentMethod: paymentMethod || 'COD',
-                        isCouponUsed: !!coupon,
-                        coupon: coupon ? coupon : {},
-                        orderItems: {
-                            create: storeItems.map(item => ({
-                                productId: item.productId,
-                                quantity: item.quantity,
-                                price: item.price
-                            }))
+                    return prisma.order.create({
+                        data: {
+                            userId,
+                            storeId,
+                            addressId,
+                            total: discountedTotal,
+                            paymentMethod: paymentMethod || 'COD',
+                            isCouponUsed: !!coupon,
+                            coupon: coupon ? coupon : {},
+                            orderItems: {
+                                create: storeItems.map(item => ({
+                                    productId: item.productId,
+                                    quantity: item.quantity,
+                                    price: item.price
+                                }))
+                            }
                         }
-                    }
+                    })
                 })
-            })
+            )
         )
 
         if (paymentMethod === PaymentMethod.STRIPE) {
@@ -113,11 +129,11 @@ export async function POST(request) {
                         product_data: {
                             name: `Order from GoCart`,
                         },
-                        unit_amount: Math.round(fullAmount * 100), // amount in cents
+                        unit_amount: Math.round(fullAmount * 100),
                     },
                     quantity: 1
                 }],
-                expires_at: Math.floor(Date.now() / 1000) + 30 * 60, // 30 minutes from now
+                expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
                 mode: 'payment',
                 success_url: `${origin}/loading?nextUrl=orders`,
                 cancel_url: `${origin}/cart`,
@@ -130,7 +146,6 @@ export async function POST(request) {
             return NextResponse.json({ session })
         }
 
-        // clear the user's cart after successful order creation
         await prisma.user.update({
             where: { id: userId },
             data: { cart: {} }
@@ -144,7 +159,6 @@ export async function POST(request) {
     }
 }
 
-// get all orders for the logged-in user
 export async function GET(request) {
     try {
         const { userId } = getAuth(request)
