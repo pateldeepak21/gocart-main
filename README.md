@@ -1,13 +1,15 @@
 <div align="center">
-  <h1><img src="https://gocart-gs.vercel.app/favicon.ico" width="20" height="20" alt="GoCart Favicon">
-   GoCart</h1>
+  <h1>🛒 GoCart</h1>
   <p>
-    An open-source multi-vendor e-commerce platform built with Next.js and Tailwind CSS.
+    A full-stack, multi-vendor e-commerce platform built with Next.js, Prisma, PostgreSQL, and Clerk.
   </p>
   <p>
-    <a href="https://github.com/GreatStackDev/goCart/blob/main/LICENSE.md"><img src="https://img.shields.io/github/license/GreatStackDev/goCart?style=for-the-badge" alt="License"></a>
-    <a href="https://github.com/GreatStackDev/goCart/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge" alt="PRs Welcome"></a>
-    <a href="https://github.com/GreatStackDev/goCart/issues"><img src="https://img.shields.io/github/issues/GreatStackDev/goCart?style=for-the-badge" alt="GitHub issues"></a>
+    <a href="https://gocart-main-umf7.vercel.app"><img src="https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge" alt="Live Demo"></a>
+    <a href="https://github.com/pateldeepak21/gocart-main/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pateldeepak21/gocart-main?style=for-the-badge" alt="License"></a>
+    <a href="https://github.com/pateldeepak21/gocart-main/issues"><img src="https://img.shields.io/github/issues/pateldeepak21/gocart-main?style=for-the-badge" alt="GitHub issues"></a>
+  </p>
+  <p>
+    <strong><a href="https://gocart-main-umf7.vercel.app">🔗 Live Demo</a></strong>
   </p>
 </div>
 
@@ -16,70 +18,120 @@
 ## 📖 Table of Contents
 
 - [✨ Features](#-features)
-- [🛠️ Tech Stack](#-tech-stack)
+- [🛠️ Tech Stack](#️-tech-stack)
+- [🏗️ Architecture Highlights](#️-architecture-highlights)
 - [🚀 Getting Started](#-getting-started)
-- [🤝 Contributing](#-contributing)
 - [📜 License](#-license)
 
 ---
 
-## Features
+## ✨ Features
 
-- **Multi-Vendor Architecture:** Allows multiple vendors to register, manage their own products, and sell on a single platform.
-- **Customer-Facing Storefront:** A beautiful and responsive user interface for customers to browse and purchase products.
-- **Vendor Dashboards:** Dedicated dashboards for vendors to manage products, view sales analytics, and track orders.
-- **Admin Panel:** A comprehensive dashboard for platform administrators to oversee vendors, products, and commissions.
+### Customer
+- Browse and search products across all approved stores
+- Persistent cart with debounced sync to the database
+- Manage delivery addresses
+- Apply discount coupons (new-user, member-only, or general)
+- Checkout via **Cash on Delivery** or **Stripe**
+- Track order status and rate delivered products
 
-## 🛠️ Tech Stack <a name="-tech-stack"></a>
+### Seller
+- Register a store (goes live after admin approval)
+- Add products with multiple images — with **AI-assisted auto-fill** of name/description from a product photo
+- Toggle product stock status
+- View and update order status
+- Seller dashboard: earnings, orders, products, ratings & reviews
 
-- **Framework:** Next.js
-- **Styling:** Tailwind CSS
-- **UI Components:** Lucide React for icons
-- **State Management:** Redux Toolkit
+### Admin
+- Approve or reject store applications
+- Activate/deactivate any store
+- Create and delete coupons (with automatic expiry cleanup)
+- Platform-wide dashboard: total orders, revenue, products, stores
 
-## 🚀 Getting Started <a name="-getting-started"></a>
+---
 
-First, install the dependencies. We recommend using `npm` for this project.
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 15 (App Router) |
+| Styling | Tailwind CSS |
+| UI Icons | Lucide React |
+| State Management | Redux Toolkit |
+| Database | PostgreSQL ([Neon](https://neon.tech)) |
+| ORM | Prisma 7 with `@prisma/adapter-pg` |
+| Authentication | [Clerk](https://clerk.com) |
+| Image Hosting | [ImageKit](https://imagekit.io) |
+| Payments | Stripe Checkout + Webhooks |
+| Background Jobs | [Inngest](https://www.inngest.com) |
+| Deployment | Vercel |
+
+---
+
+## 🏗️ Architecture Highlights
+
+- **Role-based authorization** — every protected API route verifies identity via Clerk and checks seller/admin status server-side, not just in the UI.
+- **Multi-vendor checkout** — a single cart can span multiple stores; the order API groups items by store and creates one order per store in a single transaction.
+- **Event-driven automation** — Inngest keeps user records in sync with Clerk and auto-expires coupons without manual cron jobs.
+- **Self-healing user sync** — API routes create a missing `User` record on the fly (from Clerk) if the sync webhook hasn't landed yet, preventing foreign-key failures.
+- **Resilient DB layer** — uses the standard `pg` driver adapter for stable connections in Vercel's serverless environment.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+
+- A [Neon](https://neon.tech) PostgreSQL database
+- Accounts for [Clerk](https://clerk.com), [ImageKit](https://imagekit.io), [Stripe](https://stripe.com), and [Inngest](https://www.inngest.com)
+
+### Installation
 
 ```bash
+git clone https://github.com/pateldeepak21/gocart-main.git
+cd gocart-main
 npm install
 ```
 
-Then, run the development server:
+### Environment Variables
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Create a `.env` file in the root:
+
+```env
+DATABASE_URL=your_neon_pooled_connection_string
+DIRECT_URL=your_neon_direct_connection_string
+
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+CLERK_SECRET_KEY=your_clerk_secret_key
+
+IMAGEKIT_PUBLIC_KEY=your_imagekit_public_key
+IMAGEKIT_PRIVATE_KEY=your_imagekit_private_key
+IMAGEKIT_URL_ENDPOINT=your_imagekit_url_endpoint
+
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+
+ADMIN_EMAIL=your_admin_email
+NEXT_PUBLIC_CURRENCY_SYMBOL=$
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Run locally
 
-You can start editing the page by modifying `app/(public)/page.js`. The page auto-updates as you edit the file.
+```bash
+npx prisma generate
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Outfit](https://vercel.com/font), a new font family for Vercel.
-
----
-
-## 🤝 Contributing <a name="-contributing"></a>
-
-We welcome contributions! Please see our [CONTRIBUTING.md](./CONTRIBUTING.md) for more details on how to get started.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 📜 License <a name="-license"></a>
+## 📦 Deployment
 
-This project is licensed under the MIT License. See the [LICENSE.md](./LICENSE.md) file for details.
+Deployed on **Vercel** with continuous deployment from the `main` branch — every push triggers an automatic production build. Environment variables are configured in Vercel's project settings and are never committed to version control.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 📜 License
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+This project is for educational/portfolio purposes.
